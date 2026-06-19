@@ -10,4 +10,5 @@ MODEL="Qwen/Qwen3-30B-A3B-Instruct-2507"
 exec uv run python -m vllm.entrypoints.openai.api_server \
     --model "$MODEL" \
     --host 0.0.0.0 \
+    --device cpu \
     --port 8000

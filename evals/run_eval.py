@@ -58,7 +58,66 @@ def matches(gold_rows: list[tuple] | None, pred_rows: list[tuple] | None) -> boo
 
 def eval_one(question: dict, agent_url: str) -> dict:
     """Score one question. Return a dict capturing per-iteration correctness."""
-    raise NotImplementedError("Phase 5")
+    payload = {
+        "question": question["question"],
+        "db": question["db_id"],
+        "tags": {"run_type": "eval_baseline"}
+    }
+    
+    # 1. Query the agent FastAPI endpoint
+    try:
+        resp = httpx.post(agent_url, json=payload, timeout=60.0)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        return {
+            "question": question["question"],
+            "db_id": question["db_id"],
+            "gold_sql": question["gold_sql"],
+            "correct_by_iteration": {"0": False, "1": False, "2": False},
+            "final_sql": "",
+            "iterations_taken": 0,
+            "ok": False,
+            "error": f"Agent request failed: {e}",
+            "history": []
+        }
+
+    # 2. Get gold execution result
+    ok_gold, gold_rows, error_gold = run_sql(question["db_id"], question["gold_sql"])
+    
+    # 3. Evaluate each query in history with carry-forward
+    history = data.get("history", [])
+    correct_by_iteration = {}
+    last_correct = False
+    
+    # Support at least 3 iterations, or more if history is longer
+    num_iters = max(3, len(history))
+    
+    for k in range(num_iters):
+        if k < len(history):
+            pred_sql = history[k].get("sql", "")
+            if pred_sql:
+                ok_pred, pred_rows, error_pred = run_sql(question["db_id"], pred_sql)
+                current_correct = matches(gold_rows, pred_rows) if ok_gold and ok_pred else False
+            else:
+                current_correct = False
+            last_correct = current_correct
+        else:
+            current_correct = last_correct
+            
+        correct_by_iteration[str(k)] = current_correct
+
+    return {
+        "question": question["question"],
+        "db_id": question["db_id"],
+        "gold_sql": question["gold_sql"],
+        "correct_by_iteration": correct_by_iteration,
+        "final_sql": data.get("sql", ""),
+        "iterations_taken": data.get("iterations", 0),
+        "ok": data.get("ok", False),
+        "error": data.get("error"),
+        "history": history
+    }
 
 
 def summarize(results: list[dict]) -> dict:
@@ -70,7 +129,39 @@ def summarize(results: list[dict]) -> dict:
     The agent stopped emitting; whatever it had at termination is what
     would have been served had we polled at iteration k.
     """
-    raise NotImplementedError("Phase 5")
+    total = len(results)
+    if total == 0:
+        return {
+            "total_questions": 0,
+            "overall_accuracy": 0.0,
+            "accuracy_by_iteration": {}
+        }
+        
+    all_iters = set()
+    for r in results:
+        all_iters.update(r["correct_by_iteration"].keys())
+    sorted_iters = sorted(list(all_iters), key=int)
+    
+    correct_counts = {k: 0 for k in sorted_iters}
+    for r in results:
+        for k in sorted_iters:
+            if r["correct_by_iteration"].get(k, False):
+                correct_counts[k] += 1
+                
+    accuracy_by_iteration = {
+        k: count / total for k, count in correct_counts.items()
+    }
+    
+    # The overall accuracy is the accuracy of the final output (max iteration results)
+    max_iter_str = sorted_iters[-1] if sorted_iters else "0"
+    overall_correct = sum(1 for r in results if r["correct_by_iteration"].get(max_iter_str, False))
+    overall_accuracy = overall_correct / total
+    
+    return {
+        "total_questions": total,
+        "overall_accuracy": overall_accuracy,
+        "accuracy_by_iteration": accuracy_by_iteration
+    }
 
 
 # ---------- Main (provided) --------------------------------------------

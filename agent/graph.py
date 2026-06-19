@@ -124,7 +124,47 @@ def verify_node(state: AgentState) -> dict:
     What counts as "not plausible" is yours to define - see the Phase 3 targets
     in the README.
     """
-    raise NotImplementedError("Implement in Phase 3")
+    if state.execution is None:
+        return {"verify_ok": False, "verify_issue": "No execution result found."}
+    
+    if not state.execution.ok:
+        # SQLite error: bypass LLM verification and route directly to revise node with the error details.
+        return {"verify_ok": False, "verify_issue": f"SQL execution failed: {state.execution.error}"}
+
+    response = llm().invoke([
+        ("system", prompts.VERIFY_SYSTEM),
+        ("user", prompts.VERIFY_USER.format(
+            question=state.question,
+            sql=state.sql,
+            execution_result=state.execution.render(),
+        )),
+    ])
+    
+    text = response.content
+    ok = False
+    issue = "Failed to parse verifier response."
+    
+    # Defensive parsing of JSON out of potential prose or markdown blocks
+    match = re.search(r"({.*})", text, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            ok = bool(data.get("ok", False))
+            issue = str(data.get("issue", ""))
+        except Exception:
+            pass
+    else:
+        try:
+            data = json.loads(text.strip())
+            ok = bool(data.get("ok", False))
+            issue = str(data.get("issue", ""))
+        except Exception as e:
+            issue = f"No JSON found in response. Raw response: {text}"
+            
+    return {
+        "verify_ok": ok,
+        "verify_issue": issue,
+    }
 
 
 def revise_node(state: AgentState) -> dict:
@@ -137,7 +177,23 @@ def revise_node(state: AgentState) -> dict:
 
     Return: {"sql": <str>, "iteration": state.iteration + 1, ...}.
     """
-    raise NotImplementedError("Implement in Phase 3")
+    exec_render = state.execution.render() if state.execution else "No execution result."
+    response = llm().invoke([
+        ("system", prompts.REVISE_SYSTEM),
+        ("user", prompts.REVISE_USER.format(
+            schema=state.schema,
+            question=state.question,
+            sql=state.sql,
+            execution_result=exec_render,
+            issue=state.verify_issue,
+        )),
+    ])
+    revised_sql = _extract_sql(response.content)
+    return {
+        "sql": revised_sql,
+        "iteration": state.iteration + 1,
+        "history": state.history + [{"node": "revise", "sql": revised_sql}],
+    }
 
 
 def route_after_verify(state: AgentState) -> str:
@@ -146,7 +202,11 @@ def route_after_verify(state: AgentState) -> str:
     Two reasons to end: the verifier was happy (state.verify_ok), or you've hit
     the iteration cap (state.iteration >= MAX_ITERATIONS). Otherwise, revise.
     """
-    raise NotImplementedError("Implement in Phase 3")
+    if state.verify_ok:
+        return "end"
+    if state.iteration >= MAX_ITERATIONS:
+        return "end"
+    return "revise"
 
 
 # ---- Graph wiring -----------------------------------------------------
