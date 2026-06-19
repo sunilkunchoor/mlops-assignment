@@ -11,7 +11,6 @@ export VLLM_TARGET_DEVICE=cpu
 
 uv run python -m vllm.entrypoints.openai.api_server \
   --model Qwen/Qwen3-0.6B-Instruct \
-  --device cpu \
   --host 0.0.0.0 \
   --port 8000 \
   --max-model-len 4096
