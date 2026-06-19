@@ -6,7 +6,7 @@ This report presents findings, metrics, and tuning outcomes for the text-to-SQL 
 
 ## 🚀 1. Serving Configuration (vLLM on 1× H100 80GB)
 
-For a production deployment serving the `Qwen/Qwen3-30B-A3B-Instruct-2507` Mixture of Experts (MoE) model on a single H100 GPU, the following optimized startup configuration is recommended (available in [`scripts/start_vllm_optimized.sh`](file:///home/sunilkunchoor/mlops-assignment/scripts/start_vllm_optimized.sh)):
+For a production deployment serving the `Qwen/Qwen3-30B-A3B-Instruct-2507` Mixture of Experts (MoE) model on a single H100 GPU, the following optimized startup configuration is recommended (available in [`scripts/start_vllm_optimized.sh`](file:///scripts/start_vllm_optimized.sh)):
 
 ```bash
 exec uv run python -m vllm.entrypoints.openai.api_server \
@@ -32,7 +32,7 @@ exec uv run python -m vllm.entrypoints.openai.api_server \
 
 ## 📊 2. Baseline Evaluation Results (Phase 5)
 
-The evaluation harness was run against the 30-question BIRD benchmark subset. The results are logged in [`results/eval_baseline.json`](file:///home/sunilkunchoor/mlops-assignment/results/eval_baseline.json):
+The evaluation harness was run against the 30-question BIRD benchmark subset. The results are logged in [`results/eval_baseline.json`](file:///results/eval_baseline.json):
 
 *   **Total Questions**: 30
 *   **Overall Accuracy**: **23.33%**
@@ -41,7 +41,7 @@ The evaluation harness was run against the 30-question BIRD benchmark subset. Th
     *   **Iteration 1**: **23.33%**
     *   **Iteration 2**: **23.33%**
 
-![Grafana Eval Baseline](/home/sunilkunchoor/mlops-assignment/screenshots/grafana_eval_baseline.png)
+![Grafana Eval Baseline](/screenshots/grafana_eval_baseline.png)
 
 ### Commentary:
 The self-correction agent loop earned its keep by increasing correctness from 20.0% to 23.33% (+3.33%) within 1 iteration.
@@ -53,34 +53,34 @@ The self-correction agent loop earned its keep by increasing correctness from 20
 We conducted multiple load tests to evaluate the system's performance.
 
 ### Baseline Load Test (2 RPS, 60 seconds)
-Results logged in [`results/load_test_2rps_60sec.json`](file:///home/sunilkunchoor/mlops-assignment/results/load_test_2rps_60sec.json):
+Results logged in [`results/load_test_2rps_60sec.json`](file:///results/load_test_2rps_60sec.json):
 *   **Requested RPS**: 2.0
 *   **Achieved RPS**: 1.22
 *   **Success Rate**: 96 OK / 24 HTTP Errors
 *   **P50 Latency**: 5.27s
 *   **P95 Latency**: 17.66s
 
-![Grafana Baseline Load Test](/home/sunilkunchoor/mlops-assignment/screenshots/grafana_load_test_2rps_60sec.png)
+![Grafana Baseline Load Test](/screenshots/grafana_load_test_2rps_60sec.png)
 
 ### Optimized Load Test (2 RPS, 60 seconds)
-Results logged in [`results/load_test_optimized_2rps_60sec.json`](file:///home/sunilkunchoor/mlops-assignment/results/load_test_optimized_2rps_60sec.json):
+Results logged in [`results/load_test_optimized_2rps_60sec.json`](file:///results/load_test_optimized_2rps_60sec.json):
 *   **Requested RPS**: 2.0
 *   **Achieved RPS**: 1.30
 *   **Success Rate**: 97 OK / 23 HTTP Errors
 *   **P50 Latency**: 6.00s
 *   **P95 Latency**: 18.24s
 
-![Grafana Optimized Load Test](/home/sunilkunchoor/mlops-assignment/screenshots/grafana_load_testing_optimized_2rps_60sec.png)
+![Grafana Optimized Load Test](/screenshots/grafana_load_testing_optimized_2rps_60sec.png)
 
 ### Stress Test (8 RPS, 300 seconds)
-Results logged in [`results/load_test_8rps_300sec.json`](file:///home/sunilkunchoor/mlops-assignment/results/load_test_8rps_300sec.json):
+Results logged in [`results/load_test_8rps_300sec.json`](file:///results/load_test_8rps_300sec.json):
 *   **Requested RPS**: 8.0
 *   **Achieved RPS**: 6.66
 *   **Success Rate**: 149 OK, high error rate (1686 timeouts, 78 HTTP errors, 487 client errors)
 *   **P50 Latency**: 43.70s
 *   **P95 Latency**: 104.11s
 
-![Grafana Stress Test](/home/sunilkunchoor/mlops-assignment/screenshots/grafana_load_testing_8rps_300sec.png)
+![Grafana Stress Test](/screenshots/grafana_load_testing_8rps_300sec.png)
 
 ### Observation on Load Testing:
 As we scaled to 8 RPS, the system became saturated, leading to massive timeouts and a P95 latency >100 seconds. This indicates the 1x H100 GPU hit its capacity limits for this model under sustained high concurrency.
@@ -92,15 +92,15 @@ As we scaled to 8 RPS, the system became saturated, leading to massive timeouts 
 Langfuse traces and tags were captured to debug the agent's behavior under the hood.
 
 **Langfuse Trace Example 1**
-![Langfuse Trace 1](/home/sunilkunchoor/mlops-assignment/screenshots/langfuse_trace_1.png)
+![Langfuse Trace 1](/screenshots/langfuse_trace_1.png)
 
 **Langfuse Trace Example 2**
-![Langfuse Trace 2](/home/sunilkunchoor/mlops-assignment/screenshots/langfuse_trace_2.png)
+![Langfuse Trace 2](/screenshots/langfuse_trace_2.png)
 
 **Langfuse Tags and Calls**
-![Langfuse Tags 1](/home/sunilkunchoor/mlops-assignment/screenshots/langfuse_tags_1.png)
-![Langfuse Calls](/home/sunilkunchoor/mlops-assignment/screenshots/langfuse_calls_cmd.png)
-![Langfuse Grafana Stats](/home/sunilkunchoor/mlops-assignment/screenshots/graphana_langfuse_calls.png)
+![Langfuse Tags 1](/screenshots/langfuse_tags_1.png)
+![Langfuse Calls](/screenshots/langfuse_calls_cmd.png)
+![Langfuse Grafana Stats](/screenshots/graphana_langfuse_calls.png)
 
 ---
 
@@ -109,12 +109,12 @@ Langfuse traces and tags were captured to debug the agent's behavior under the h
 The multi-step LangGraph agent architecture provided measurable value. By utilizing a validator node (`verify_node`), the agent programmatically executes the SQL queries and checks their output syntax and semantic plausibility. 
 
 **Manual Query Screenshots:**
-![Manual Query 1](/home/sunilkunchoor/mlops-assignment/screenshots/manual_query_1.png)
-![Manual Query 2](/home/sunilkunchoor/mlops-assignment/screenshots/manual_query_2.png)
+![Manual Query 1](/screenshots/manual_query_1.png)
+![Manual Query 2](/screenshots/manual_query_2.png)
 
 **Grafana Stats for Manual Queries:**
-![Grafana Manual Query 1](/home/sunilkunchoor/mlops-assignment/screenshots/grafana_manual_query_1.png)
-![Grafana Manual Query 2](/home/sunilkunchoor/mlops-assignment/screenshots/grafana_manual_query_2.png)
+![Grafana Manual Query 1](/screenshots/grafana_manual_query_1.png)
+![Grafana Manual Query 2](/screenshots/grafana_manual_query_2.png)
 
 ---
 
